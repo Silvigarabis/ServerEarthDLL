@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 /*
  * Configurable variables. You may need to tweak these to be compatible with

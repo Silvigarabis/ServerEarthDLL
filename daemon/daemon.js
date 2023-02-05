@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const { createClient } = require("oicq")
 var open=require('open');
 const account = 123456//要登录账号的qq号

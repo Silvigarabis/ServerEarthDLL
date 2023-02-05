@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "oicq": "^2.3.1",
+    "open": "^8.4.0"
+  },
+  "name": "server-earth-dll-daemon",
+  "version": "1.0.0",
+  "description": "oicq daemon for earth dll",
+  "main": "daemon.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Silvigarabis/ServerEarthDLL.git"
+  },
+  "keywords": [
+    "minecraft-server",
+    "minecraft-addon",
+    "oicq-daemon"
+  ],
+  "author": "Silvigarabis",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Silvigarabis/ServerEarthDLL/issues"
+  },
+  "homepage": "https://github.com/Silvigarabis/ServerEarthDLL#readme"
+}

@@ -1,0 +1,36 @@
+{
+  "name": "yonimc_scripts",
+  "version": "1.0.0",
+  "description": "YoniMC Scripts",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Silvigarabis/ServerEarthDLL.git"
+  },
+  "keywords": [
+    "minecraft",
+    "addon",
+    "minecraft-server"
+  ],
+  "author": "Silvigarabis",
+  "contributors": [
+      "EarthDLL", "Silvigarabis"
+  ],
+  "license": "SEE LICENSE IN LICENSE.md",
+  "bugs": {
+    "url": "https://github.com/Silvigarabis/ServerEarthDLL/issues"
+  },
+  "homepage": "https://github.com/Silvigarabis/ServerEarthDLL#readme",
+  "dependencies": {
+    "@minecraft/server": "^1.1.0-beta.release.1.19.50",
+    "@minecraft/server-admin": "^1.0.0-beta.release.1.19.50",
+    "@minecraft/server-gametest": "^1.0.0-beta.release.1.19.50",
+    "@minecraft/server-net": "^1.0.0-beta.release.1.19.50",
+    "@minecraft/server-ui": "^1.0.0-beta.release.1.19.50",
+    "typescript": "^4.9.3"
+  }
+}
