@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Logger, log } from "./yoni/util/Logger.js";
 import { load } from "./yoni/loader.js";
 

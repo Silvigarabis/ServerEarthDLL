@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Minecraft } from "./yoni/basis.js";
 
 Minecraft.system.run(()=>{

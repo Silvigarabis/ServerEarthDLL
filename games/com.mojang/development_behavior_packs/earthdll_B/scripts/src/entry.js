@@ -1,4 +1,3 @@
-// @ts-nocheck
 //先导入防止看门狗咬人的脚本
 import "./yoni/util/WatchBird.js";
 import { VanillaEvents } from "./yoni/basis.js";
