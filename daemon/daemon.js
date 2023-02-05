@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
-const { createClient } = require("oicq")
-var open=require('open');
 const account = 123456//要登录账号的qq号
-var http = require("http");
-var url = require("url");
-var fs = require("fs");
 var talk_number = 438185675//服务器玩家QQ群(这是我的，可以来玩纯生存，验证码：85992)
 var log_number = 13928//日志QQ群
+
+const { createClient } = require("oicq")
+var http = require("http");
+var open = require('open');
+var url = require("url");
+var fs = require("fs");
+
+var { log_number, talk_number, account } = require("./config.js");
+
 var send_text = ""
 
 function open_server(){
