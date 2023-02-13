@@ -477,9 +477,7 @@ world.events.blockPlace.subscribe(event => {
 })
 
 world.events.beforePistonActivate.subscribe(event => {
-    event.cancel = true
     var piston = event.block
-    piston.setType(MinecraftBlockTypes.air)
     var dir = piston.permutation.getProperty("facing_direction").value
     var pos = piston.location
     switch(dir){
