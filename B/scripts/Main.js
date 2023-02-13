@@ -1,18 +1,19 @@
-import { Vector3,MinecraftBlockTypes,MinecraftItemTypes,ItemStack,Location,BlockLocation,world,Player,system,Scoreboard,EnchantmentList } from "@minecraft/server";
+import { Color,Vector,MolangVariableMap,MinecraftEffectTypes,MinecraftBlockTypes,MinecraftItemTypes,ItemStack,Location,BlockLocation,world,Player,system,Scoreboard,EnchantmentList } from "@minecraft/server";
 import { ActionFormData,MessageFormData,ModalFormData,ActionFormResponse } from "@minecraft/server-ui";
 //import {http} from "@minecraft/server-net";
 import lmd5 from "./md5.js"
 var time_board = false
-var infoEntity
+var InfoBlock
+var Infos
 var entities_count = 0
 var tps_ms = 0
 var trades = []
 var ore_list = ["minecraft:clock","minecraft:iron_ingot" , "minecraft:raw_iron" , "minecraft:raw_gold" , "minecraft:gold_ingot" , "minecraft:diamond" , "minecraft:emerald" , "minecraft:netherite_scrap" , "minecraft:coal" , "minecraft:lapis_lazuli"]
 var beload = false
 const emojis = [["","/笑脸","/xl"],["","/苦脸","/kl"],["","/死","/si"],["","/白眼","/by"],["","/开心","/kx"],["","/流口水","/lks"],["","/无语","/wy"],["","/搞怪","/gg"],["","/猥琐","/ws"],["","/哭","/ku"],["","/冷","/leng"],["","/生气","/sq"],["","/帅","/shuai"],["","/害羞","/hx"],["","/魔鬼","/mg"],["","/所以呢","/syn"],["","/笑哭","/xk"],["","/口罩","/kz"],["","/亲","/qin"]]
-var command_list = [ "reset" , "cd" , "菜单" , "talk" , "私聊" , "tp" , "传送" , "死" , "die",]
+var command_list = [ "Fill","tpaccept","reset" , "cd" , "菜单" , "talk" , "私聊" , "tp" , "传送" , "死" , "die",]
 var ui_path = "textures/ui/"
-var totals = "欢迎来到§e无名氏生存服务器§r\n聊天框输入 §ecd§r 或 §e菜单§r 进入主菜单\n§e使用矿物双击方块§r打开菜单\n严查§4矿物透视§r，保证玩家公平"
+var totals = ["欢迎来到§e无名氏生存服务器§r","聊天框输入 §ecd§r 或 §e菜单§r 进入主菜单","§e使用矿物双击方块§r打开菜单","严查§4矿物透视§r，保证玩家公平"]
 var ideas = []
 var boards = []
 var logs = []
@@ -26,12 +27,16 @@ var spawn = 0
 var spawn_now = 0
 var ban_list = []
 var works = []
+var settings = {
+    kick : true,
+    team_id : 10000
+}
 var danger_break_blocks = [ "minecraft:tnt" , "minecraft:beacon" , "mimecraft:dragon_egg" , "minecraft:observer" ,  "minecraft:ancient_debris" , "minecraft:netherite_block" , "minecraft:diamond_block" , "minecraft:deepslate_diamond_ore" , "minecraft:diamond_ore" , "minecraft:emerald_ore" , "minecraft:deepslate_emerald_ore" , "minecraft:bed"]
 var danger_place_blocks = [ "minecraft:tnt" , "minecraft:beacon" , "mimecraft:dragon_egg" , "minecraft:observer" ,  "minecraft:ancient_debris" , "minecraft:netherite_block" , "minecraft:diamond_block" , "minecraft:deepslate_diamond_ore" , "minecraft:diamond_ore" , "minecraft:emerald_ore" , "minecraft:deepslate_emerald_ore" , "minecraft:bed"]
-var kick_place_blocks = [ "minecraft:chain_command_block","minecraft:repeating_command_block", "minecraft:bedrock" ,"minecraft:end_portal_frame" , "minecraft:mob_spawner","minecraft:structure_block"]
+var kick_place_blocks = [ "minecraft:light_block","minecraft:invisible_bedrock","minecraft:chain_command_block","minecraft:repeating_command_block", "minecraft:bedrock" ,"minecraft:end_portal_frame" , "minecraft:mob_spawner","minecraft:structure_block"]
 var kick_break_blocks = [ "minecraft:chain_command_block","minecraft:repeating_command_block", "minecraft:bedrock" ,"minecraft:end_portal_frame" , "minecraft:structure_block"]
 var entities_test = [ "minecraft:wolf" , "minecraft:parrot" , "minecraft:donkey" , "minecraft:horse" , "minecraft:mule" , "minecraft:cat"]
-var kick_item = [ "minecraft:command_block_minecart","minecraft:repeating_command_block","minecraft:chain_command_block","minecraft:structure_block","minecraft:bedrock","minecraft:command_block","minecraft:barrier","minecraft:end_portal_frame","minecraft:mob_spawner","minecraft:moving_block"]
+var kick_item = [  "minecraft:light_block","minecraft:invisible_bedrock","minecraft:command_block_minecart","minecraft:repeating_command_block","minecraft:chain_command_block","minecraft:structure_block","minecraft:bedrock","minecraft:command_block","minecraft:barrier","minecraft:end_portal_frame","minecraft:mob_spawner","minecraft:moving_block"]
 world.getDimension("minecraft:overworld").name = "§b主世界§r"
 world.getDimension("minecraft:the_end").name = "§5末地§r"
 world.getDimension("minecraft:nether").name = "§4下界§r"
@@ -42,8 +47,24 @@ world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives
 world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add show1 dummy 游玩时间")
 world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add show2 dummy 游玩时间")
 
-const spawn_point = {x:-2,y:70,z:50}
+const spawn_point = {x:-2,y:71,z:50}
 const overworld = world.getDimension("minecraft:overworld")
+const end = world.getDimension("minecraft:the_end")
+const nether = world.getDimension("minecraft:nether")
+
+function get_di_by_id(id){
+    switch(id){
+        case "minecraft:nether":
+            return nether
+            break;
+        case "minecraft:the_end":
+            return end
+            break;
+        case "minecraft:overworld":
+            return overworld
+            break;
+    }
+}
 
 var safe_place = [spawn_point]
 //初始化获取队伍信息
@@ -64,6 +85,44 @@ function script_check_run(command){
     }
 }
 
+function fill_blocks(di,lo1,lo2,type,player){
+    new Promise((resolve, reject) => {
+    var start = lo1.y
+    var finish = lo2.y
+    var count = 0
+    if(start > finish){
+        finish = start
+        start = lo2.y
+    }
+    for(var cf=start;cf<=finish;cf++){
+    count += di.fillBlocks(new BlockLocation(lo1.x,cf,lo1.z),new BlockLocation(lo2.x,cf,lo2.z),type)
+    }
+    player.tell("填充完成，填充方块数量："+String(count))
+    })
+}
+
+function clear_items(){
+
+        for(var cf of world.getDimension("minecraft:overworld").getEntities({type:"item"})){
+            var kill = true
+            for(var cf1 of world.getDimension("minecraft:overworld").getEntities({type:"player",location:cf.headLocation,maxDistance:8})){
+                kill = false
+            }
+            if(kill === true){
+                cf.kill()
+            }
+        }
+        world.say("§e[清洁工]已清理所有掉落物")
+}
+
+function entity_to_entity(self,target){
+    tp_entity(self,target.dimension,target.location.x,target.location.y,target.location.z)
+}
+
+function tp_entity(entity,di,x,y,z){
+    entity.teleport({"x":x,"y":y,"z":z},di,entity.rotation.x,entity.rotation.y)
+}
+
 function get_pos(entity){
     return "(" + String(Math.round(entity.location.x)) + "，" + String(Math.round(entity.location.y)) + "，" + String(Math.round(entity.location.z)) + ")"
 }
@@ -74,23 +133,46 @@ function get_block_pos(block){
 
 function save_trades(text){
     trades.push(text)
-    infoEntity.addTag(text)
+    save_all_trades()
+}
+
+function get_block(di,x,y,z){
+    var block = di.getBlock(new BlockLocation(x,y,z))
+    return block
 }
 
 function delete_trades(text){
     if(trades.indexOf(text) > -1){
         trades.splice(trades.indexOf(text),1)
     }
-    infoEntity.removeTag(text)
+    save_all_trades()
+}
+
+function save_all_trades(){
+    var item = Infos.getItem(4)
+    if(typeof(item) !== "object"){
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+    if(trades.length > 0){
+        item.setLore(trades)
+    }
+    else{
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+    Infos.setItem(4,item)
 }
 
 function kick(player,reason,again = false){
+    if(player.kick !== true && settings.kick === true){
     if(again === false){
         ban_list.push(player.name)
+        save_ban_list()
     }
     if(is_op(player) === false){
+    player.kick = true
     run_command("kick \""+player.name + "\" "+String(reason))
     log("§e将玩家" + player.name + "踢出游戏，原因："+String(reason),true)
+    }
     }
 }
 
@@ -125,9 +207,21 @@ function save_team(index){
     if(teams[index].pos3.length === 5){
         text += "，p3；" + teams[index].pos3[0] + "；" + teams[index].pos3[1] + "；" + teams[index].pos3[2] + "；" + teams[index].pos3[3] + "；" + teams[index].pos3[4]
     }
-    infoEntity.removeTag(teams[index].tag)
-    infoEntity.addTag(text)
     teams[index].tag = text
+    save_all_teams()
+}
+
+function save_all_teams(){
+        var item = Infos.getItem(3)
+    if(typeof(item) !== "object"){
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+        var text = []
+        for(var cf=0;cf<teams.length;cf++){
+            text.push(teams[cf].tag)
+        }
+        item.setLore(text)
+        Infos.setItem(3,item)
 }
 
 
@@ -181,36 +275,148 @@ function get_team_by_player(player,type = 0){
 
 function reload_all(){
     var run_time = Date.now()
-    world.getDimension("minecraft:overworld").runCommandAsync("fill 1 -64 1 -1 -60 -1 bedrock")
-    world.say("§e正在加载服务器信息")
-    const opinion = {
-    location : new Location( 0 , -63 , 0 ),
-    closest : 1,
-    tags : ["serverInfomation"],
-    }
-    var entity = Array.from(world.getDimension("minecraft:overworld").getEntities(opinion))
-    if(entity.length === 1){if(entity[0].typeId === "minecraft:npc"){
-        entity = entity[0]
-        infoEntity = entity
-        var tags = entity.getTags()
-        for(var cf=0; cf<tags.length; cf++){
-            if(tags[cf].indexOf("team，") === 0 ){
-                load_team(tags[cf])
-            }
-            if(tags[cf].indexOf("team_id，") === 0 ){
-                team_id = parseInt(tags[cf].split("，")[1])
-            }
-            if(tags[cf].indexOf("trade，") === 0 ){
-                trades.push(tags[cf])
+    //1 -63 1 ~ 3 -61 3
+    InfoBlock = overworld.getBlock(new BlockLocation(2 , -62 , 2))
+    if(typeof(InfoBlock) === "object" && InfoBlock !== null){
+        if(InfoBlock.typeId === "minecraft:chest"){
+            Infos = InfoBlock.getComponent("minecraft:inventory").container
+            if(typeof(Infos)==="object"){
+                load_all_teams()
+                load_totals()
+                load_ban_list()
+                load_settings()
+                load_trades()
+                world.say("§e服务器信息加载完成")
+                beload = true
             }
         }
-    world.say("§e服务器信息加载完成")
-    beload = true
-    }}
-    else{
-    world.say("§e服务器信息加载失败,目标出错")
+        else{
+            InfoBlock.setType(MinecraftBlockTypes.chest)
+            return 0
+        }
     }
+    world.getDimension("minecraft:overworld").runCommandAsync("fill 0 -64 0 4 -60 4 bedrock 0 outline")
     script_check_run(`tellraw @s {"rawtext":[{"text":"` + "加载用时" + String(Date.now() - run_time) +`"}]}`)
+}
+
+function load_totals(){
+    var item = Infos.getItem(0)
+    if(typeof(item) === "object"){
+        var lores = item.getLore()
+        if(lores.length > 0){
+            totals = lores
+        }
+    }
+    else{
+        Infos.setItem(0,new ItemStack(MinecraftItemTypes.apple))
+    }
+}
+function load_trades(){
+    var item = Infos.getItem(4)
+    if(typeof(item) === "object"){
+        var lores = item.getLore()
+        if(lores.length > 0){
+            trades = lores
+        }
+    }
+    else{
+        Infos.setItem(4,new ItemStack(MinecraftItemTypes.apple))
+    }
+}
+
+
+function load_ban_list(){
+    var item = Infos.getItem(1)
+    if(typeof(item) === "object"){
+        var lores = item.getLore()
+        for(var cf of lores){
+            ban_list.push(cf)
+            
+        }
+    }
+    else{
+        Infos.setItem(1,new ItemStack(MinecraftItemTypes.apple))
+    }
+}
+
+function load_all_teams(){
+    var item = Infos.getItem(3)
+    return 0
+    if(typeof(item) === "object"){
+        var lores = item.getLore()
+        for(var cf of lores){
+            load_team(cf)
+        }
+    }
+    else{
+        Infos.setItem(3,new ItemStack(MinecraftItemTypes.apple))
+    }
+}
+
+
+function load_settings(){
+    var item = Infos.getItem(2)
+    if(typeof(item) === "object"){
+        var lores = item.getLore()
+        for(var cf of lores){
+            var text = cf.split("，")
+            switch(text[0]){
+                case "kick":
+                    if(text[1] === "false"){
+                        settings.kick = false
+                    }else{
+                        settings.kick = true
+                    }
+                    break;
+                case "team_id":
+                    settings.team_id = parseInt(text[1])
+                    team_id = parseInt(text[1])
+                    break;
+            }
+            
+        }
+    }
+    else{
+        Infos.setItem(2,new ItemStack(MinecraftItemTypes.apple))
+    }
+}
+
+
+function save_ban_list(){
+    var item = Infos.getItem(1)
+    if(typeof(item) !== "object"){
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+    if(ban_list.length > 0){
+        item.setLore(ban_list)
+    }
+    else{
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+    Infos.setItem(1,item)
+}
+
+
+function save_settings(){
+    var item = Infos.getItem(2)
+    if(typeof(item) !== "object"){
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+        var text = []
+        for(var cf in settings){
+            text.push(cf+"，"+String(settings[cf]))
+        }
+        item.setLore(text)
+        Infos.setItem(2,item)
+}
+
+function save_totals(){
+    var item = Infos.getItem(0)
+    if(typeof(item) !== "object"){
+        item = new ItemStack(MinecraftItemTypes.apple)
+    }
+    item.setLore(totals)
+    Infos.setItem(0,item)
 }
 
 
@@ -222,11 +428,11 @@ function add_team(info,owner){
     var team = info
     team.tag = text
     teams.push(team)
-    infoEntity.addTag(text)
     owner.addTag("myTeam,"+ String(team_id))
-    infoEntity.removeTag("team_id，" + String(team_id))
     team_id ++;
-    infoEntity.addTag("team_id，" + String(team_id))
+    settings.team_id ++
+    save_all_teams()
+    save_settings()
     add_score(owner,-500,true)
 }
 
@@ -270,10 +476,6 @@ function load_team(info){
     teams.push(team)
 }
 
-/*setting使用帮助
-第一位：聊天设置
-
-*/
 
 function get_shares(){
     var players = world.getAllPlayers()
@@ -364,7 +566,7 @@ function get_tag(player,tag){
 
 function add_score(player,count,push = false){
     if(push === true){
-        player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e获得` + String(count) + `贡献值"}]}`)
+        player.tell("§g获得" + String(count) + "贡献值")
     }
     player.runCommandAsync("scoreboard players add @s score " + String(count))
 }
@@ -462,7 +664,22 @@ world.events.blockPlace.subscribe(event => {
         }
         if(block.typeId === "minecraft:chest"){
             var con = block.getComponent("minecraft:inventory").container
-            if(con.size - con.emptySlotsCount >1){
+            var need_kick = false
+            if(con.size === 27){
+            if(con.size - con.emptySlotsCount >0){
+                need_kick = true
+                }
+            }
+            else{if(typeof(event.player.beside_chest) === "object")
+                for(var cf of event.player.beside_chest){
+                    if(cf.block.getComponent("minecraft:inventory").container.size > cf.size){
+                        if(cf.block.getComponent("minecraft:inventory").container.emptySlotsCount - cf.empty < 27){
+                            need_kick = true
+                        }
+                    }
+                }
+            }
+            if(need_kick === true){
                 kick(event.player,"放置nbt箱子")
                 block.setType(MinecraftBlockTypes.air)
                 for(var cf of 
@@ -527,7 +744,7 @@ world.events.beforePistonActivate.subscribe(event => {
     pistons_now ++ 
 })
 
-world.events.entityCreate.subscribe(event => {
+world.events.entitySpawn.subscribe(event => {
     spawn_now ++ 
 })
 
@@ -535,8 +752,8 @@ world.events.entityCreate.subscribe(event => {
 
 
 world.events.tick.subscribe(event => {
-    for(cf of works){
-        if(cf.time === event.currentTick){
+    for(var cf=0;cf<works.length;cf++){
+        /*if(cf.time === event.currentTick){
             switch(cf.type){
                 case "chest-check":
                     cf.player.tell("正在执行检查")
@@ -550,6 +767,20 @@ world.events.tick.subscribe(event => {
                         })
                     break;
             }
+        }*/
+        var work = works[cf]
+        switch(work.type){
+            case "far_fall":
+                var location = work.player.location
+                for(var cf1=15;cf1>10;cf1--){
+                var the_block = get_block(work.player.dimension,Math.trunc(location.x),Math.trunc(location.y-cf1),Math.trunc(location.z))
+                if(typeof(the_block) === "object" && the_block !== null){
+                if(the_block.typeId !== "minecraft:air"){
+                    work.player.addEffect(MinecraftEffectTypes.slowFalling,100,1,false)
+                    works.splice(cf,1)
+                    
+                }}}
+                break;
         }
     }
     if(event.currentTick % 20 == 0){
@@ -568,13 +799,10 @@ world.events.tick.subscribe(event => {
         }
     }
     if(event.currentTick % 6000 == 0){
-        var count = world.getDimension("minecraft:overworld").runCommandAsync("kill @e[type=item]").successCount
-        count += world.getDimension("minecraft:the_end").runCommandAsync("kill @e[type=item]").successCount
-        count += world.getDimension("minecraft:nether").runCommandAsync("kill @e[type=item]").successCount
-        world.say("§e已清理所有掉落物")
+        clear_items()
     }
     if(event.currentTick % 6000 == 4800){
-        world.say("§e一分钟后清理所有掉落物")
+        world.say("§e[清洁工]一分钟后清理所有掉落物")
     }
     if(event.currentTick % 20 == 0){
         if(beload === false){
@@ -586,6 +814,11 @@ world.events.tick.subscribe(event => {
     if(event.currentTick % 2 == 0){
         run_command("kill @e[type=npc,tag=!serverInfomation]")
         run_command("kill @e[type=command_block_minecart]")
+        for(var dragons of overworld.getEntities({type:"ender_dragon"})){
+            if(dragons.dimension.id !== "minecraft:the_end"){
+            dragons.kill()
+            }
+        }
         var players = world.getAllPlayers()
         for(var cf=0; cf<players.length; cf++){
             if(ban_list.indexOf(players[cf].name) !== -1){
@@ -688,14 +921,14 @@ world.events.tick.subscribe(event => {
                 //违禁检查
                 if(kick_item.indexOf(item.typeId) !== -1){
                         log("玩家" + players[cf].name + "获得违禁物品：" + item.typeId + "物品数量：" + item.amount,true)
-                        invent.setItem(cf1,new ItemStack(MinecraftItemTypes.apple,1,0))
+                        invent.clearItem(cf1)
                         kick(players[cf],"获得违禁物品")
                         warnBar(players[cf])
                         break;
                 }
                 if(item.typeId.indexOf("spawn_egg") != -1){
                     log("玩家" + players[cf].name + "获得违禁物品：" + item.typeId + "物品数量：" + item.amount,true)
-                    invent.setItem(cf1,MinecraftItemTypes.apple)
+                    invent.clearItem(cf1)
                     kick(players[cf],"获得违禁物品")
                     warnBar(players[cf])
                 }
@@ -773,6 +1006,33 @@ world.events.beforeExplosion.subscribe(event =>{
         blocks.splice(blocks.indexOf(cf,1))
     }
 })
+
+function get_block_from_face(di,location,face){
+    var pos
+        switch(face){
+            case "north":
+                pos = new BlockLocation(location.x,location.y,location.z-1)
+                break;
+            case "south":
+                pos = new BlockLocation(location.x,location.y,location.z+1)
+                break;
+            case "west":
+                pos = new BlockLocation(location.x-1,location.y,location.z)
+                break;
+            case "east":
+                pos = new BlockLocation(location.x+1,location.y,location.z)
+                break
+            case "down":
+                pos = new BlockLocation(location.x,location.y-2,location.z)
+                break;
+            case "up":
+                pos = new BlockLocation(location.x,location.y+1,location.z)
+                break;
+        }
+        var block = di.getBlock(pos)
+        return block
+}
+
 world.events.beforeItemUseOn.subscribe(event =>{
     /*if(event.item.typeId === "minecraft:shulker_box" || event.item.typeId === "minecraft:undyed_shulker_box"){
         var lore = event.item.getLore()
@@ -838,28 +1098,7 @@ world.events.beforeItemUseOn.subscribe(event =>{
     }
     
     if(event.item.typeId === "minecraft:hopper"){
-        var pos
-        switch(event.blockFace){
-            case "north":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z-1)
-                break;
-            case "south":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z+1)
-                break;
-            case "west":
-                pos = new BlockLocation(event.blockLocation.x-1,event.blockLocation.y+1,event.blockLocation.z)
-                break;
-            case "east":
-                pos = new BlockLocation(event.blockLocation.x+1,event.blockLocation.y+1,event.blockLocation.z)
-                break
-            case "down":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z)
-                break;
-            case "up":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y+2,event.blockLocation.z)
-                break;
-        }
-        var block = event.source.dimension.getBlock(pos)
+        var block = get_block_from_face(event.source.dimension,new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z),event.blockFace)
         if(block.typeId === "minecraft:chest"){
             var item = block.getComponent("minecraft:inventory").container.getItem(0)
             if(typeof(item) === "object"){
@@ -871,7 +1110,58 @@ world.events.beforeItemUseOn.subscribe(event =>{
            }
         }
     }
-
+    //需要补充
+    if(event.item.typeId === "minecraft:piston"){
+        var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
+        var lo = {"x" : block.x,"y" : block.y,"z" : block.z}
+        var piston_nearly = []
+        var nearly = event.source.dimension.getBlock(new BlockLocation(lo.x+1 , lo.y , lo.z))
+        
+    
+    }
+    }
+    
+    if(event.item.typeId === "minecraft:wooden_axe" && player.hasTag("op-work")){
+        var block = event.source.dimension.getBlock(event.blockLocation)
+        if(typeof(player.axe) !== "object"){
+        player.axe = {}
+        player.axe.blocks = []
+        player.axe.di = player.dimension
+        }
+        if(player.dimension.id !== player.axe.di.id){
+            player.axe.blocks = []
+            player.axe.di = player.dimension
+        }
+        player.axe.blocks.push(block)
+        if(player.axe.blocks.length > 2){
+            player.axe.blocks.splice(0,1)
+        }
+        player.playSound("dig.wood")
+        player.dimension.spawnParticle("minecraft:villager_angry",new Location(block.x+0.5,block.y+1,block.z+0.5),new MolangVariableMap().setSpeedAndDirection("1",1,new Vector(0,-5,0)))
+        player.tell("§a标记成功" + get_block_pos(block))
+        
+    
+    
+    }
+    
+    if(event.item.typeId === "minecraft:chest"){
+        var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
+        player.beside_chest = []
+        
+        var the_block = [event.source.dimension.getBlock(new BlockLocation(block.x+1 , block.y , block.z))]
+        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x-1 , block.y , block.z)))
+        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x , block.y , block.z+1)))
+        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x , block.y , block.z-1)))
+        
+        for(var cf of the_block){
+        if(cf.typeId === "minecraft:chest"){
+            player.beside_chest.push({
+                "block":cf,
+                "size":cf.getComponent("minecraft:inventory").container.size,
+                "empty":cf.getComponent("minecraft:inventory").container.emptySlotsCount
+            })
+        }
+    }
     }
 })
 
@@ -948,7 +1238,7 @@ world.events.entityHit.subscribe(event =>{
         var lores = item.getLore()
         if(lores.indexOf("passpaper") !== -1){
             add_score(event.entity,item.amount*70,true)
-            event.entity.getComponent("minecraft:inventory").container.setItem(event.entity.selectedSlot,new ItemStack(MinecraftItemTypes.apple,0,0))
+            event.entity.getComponent("minecraft:inventory").container.clearItem(event.entity.selectedSlot)
         }
     }
     if(ore_list.indexOf(item.typeId) !== -1){
@@ -962,8 +1252,24 @@ world.events.entityHit.subscribe(event =>{
 
 world.events.beforeChat.subscribe(event =>{
     event.cancel = true
-    if(command_list.indexOf(event.message) !== -1){
-        switch(event.message){
+    if(command_list.indexOf(event.message.split(" ")[0]) !== -1){
+        switch(event.message.split(" ")[0]){
+            case "tpaccept":
+                if(typeof(event.sender.tpa_player) === "object"){
+                    if(system.currentTick - event.sender.tpa_player.time < 1200){
+                    add_score(event.sender,-100,true)
+                    event.sender.tell("§e正在执行传送")
+                    entity_to_entity(event.sender,event.sender.tpa_player.player)
+                    event.sender.tpa_player = ""
+                    }
+                    else{
+                        event.sender.tell("§e传送过时")
+                    }
+                }
+                else{
+                    event.sender.tell("§e没有tpa请求")
+                }
+                break;
             case "reset":
                 if(is_op(event.sender) === true){
                     var npc = world.getDimension("minecraft:overworld").spawnEntity("minecraft:npc",new Location(0,-63,0))
@@ -989,7 +1295,16 @@ world.events.beforeChat.subscribe(event =>{
             case "死":
                 event.sender.kill()
                 break;
-            
+            case "Fill":
+                if(typeof(event.sender.axe) === "object"){
+                if(event.sender.axe.blocks.length === 2){
+                    var blocks = event.sender.axe.blocks
+                    fill_blocks(event.sender.axe.di,blocks[0].location,blocks[1].location,MinecraftBlockTypes[event.message.split(" ")[1]],event.sender)
+                }
+                else{event.sender.tell("§aFill失败：选定方块不足")}
+                }
+                else{event.sender.tell("§aFill失败：未选择方块")}
+                break;
         }
     }
     else{
@@ -1032,10 +1347,12 @@ world.events.beforeChat.subscribe(event =>{
     }}
 })
 
-world.events.playerJoin.subscribe(event => {
+world.events.playerSpawn.subscribe(event => {
+    if(event.initialSpawn === true){
     add_history(event.player.name + "(" + String(Math.round(event.player.location.x)) + "，" + String(Math.round(event.player.location.y)) + "，" + String(Math.round(event.player.location.z)) +")(" + event.player.dimension.name + ")进入服务器")
     event.player.has_show = false
     event.player.Join = true
+    }
 })
 
 world.events.playerLeave.subscribe(event => {
@@ -1565,7 +1882,7 @@ function posBar(player){
                 if(goal_text !== ""){
                     add_score(player,-100,true)
                     goal_text = goal_text.split(",")
-                    player.runCommandAsync("tp @s " + goal_text[2] + " " + goal_text[3] + " " + goal_text[4])
+                    tp_entity(player,get_di_by_id(goal_text[5]), parseInt(goal_text[2]) , parseInt(goal_text[3]), parseInt(goal_text[4]))
                 }
                 else{
                     posBar(player)
@@ -1591,7 +1908,7 @@ function posBar(player){
                 }
                 else{
                     thing = thing.split(",")
-                    player.runCommandAsync("tp @s "+ thing[2] + " " + thing[3] + " " + thing[4])
+                    tp_entity(player,get_di_by_id(goal_text[5]), parseInt(goal_text[2]) , parseInt(goal_text[3]), parseInt(goal_text[4]))
                 }
             }
             if(result.selection === 14){
@@ -1607,9 +1924,14 @@ function posBar(player){
                 player.teleport(spawn_point,overworld,player.rotation.x,player.rotation.y)
             }
             if(result.selection == 18){
-                add_score(player,20,true)
+                add_score(player,-20,true)
                 player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e正在执行传送"}]}`)
-                player.runCommandAsync("spreadplayers ~ ~ 10000 50000 @s")
+                player.runCommandAsync("spreadplayers ~ ~ 10000 50000 @s").then(result =>{
+                    works.push({
+                        "type" : "far_fall",
+                        "player" : player
+                    })
+                })
             }
         })
 }
@@ -1691,29 +2013,28 @@ function opBar(player){
     var ui = new ActionFormData()
         .title("管理员界面")
         .body("选择设置")
+        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
         .button("查看意见反馈", ui_path + "comment.png")
         .button("查看警告日志" , ui_path + "WarningGlyph.png")
         .button("贡献值设置" , ui_path + "settings_glyph_color_2x.png")
-        .button("修改公告" , ui_path + "book_edit_default.png")
-        .button("删除约定" , ui_path + "redX1.png")
+        .button("公告设置" , ui_path + "book_edit_default.png")
         .button("查看玩家日志" , ui_path + "feedIcon.png")
-        .button("封禁玩家" , "textures/blocks/barrier.png")
+        .button("封禁列表管理" , "textures/blocks/barrier.png")
         .button("查看所有队伍" , ui_path + "dressing_room_skins.png")
         .button("工作模式" , ui_path + "anvil_icon.png")
         .button("玩家物品栏" , ui_path + "selected_hotbar_slot.png")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
+        .button("运行命令")
+        .button("插件设置")
         
         if(is_op(player) === true){
         ui.show(player).then(result => {
-            if(result.selection === 0){
+            if(result.selection === 1){
                 ideaCheckBar(player)
             }
-            if(result.selection === 1){
+            if(result.selection === 2){
                 logCheckBar(player)
             }
-            if(result.selection === 4){
-                deleteTimeBar(player)
-            }
+            
             if(result.selection === 5){
                 historyCheckBar(player,true)
             }
@@ -1723,19 +2044,25 @@ function opBar(player){
             if(result.selection === 8){
                 opWorkBar(player)
             }
-            if(result.selection === 10){
+            if(result.selection === 0){
                 cdBar(player)
             }
             if(result.selection === 9){
                 inCheckBar(player)
             }
+            if(result.selection === 10){
+                runCommandBar(player)
+            }
+            if(result.selection === 11){
+                settingBar(player)
+            }
             if(result.selection === 6){
-                chooseBanBar(player)
+                banOpBar(player)
+            }
+            if(result.selection === 4){
+                opBoardBar(player)
             }
             if(result.selection === 3){
-                changeTotalBar(player,"")
-            }
-            if(result.selection === 2){
                 setScoreBar(player)
             }
         })
@@ -1767,6 +2094,31 @@ function setScoreBar(player){
             cdBar(player)
         })
 }
+
+function runCommandBar(player){
+    var ui = new ModalFormData()
+        .title("运行命令")
+        .dropdown("执行位置", ["主世界","下界","末地","我的位置"] ,3)
+        .textField("命令\n§c不需要打/","键入命令","")
+        
+        ui.show(player).then(result => {
+            var di = overworld
+            switch(result.formValues[0]){
+                case 1:
+                    di = nether
+                    break;
+                case 2:
+                    di = end
+                    break;
+                case 3:
+                    di = player
+            }
+            di.runCommandAsync(result.formValues[1]).then(result=>{player.tell("§e命令执行成功")})
+            .catch(err=>{player.tell("§e命令执行失败\n")})
+            opBar(player)
+        })
+}
+
 
 
 function ideaCheckBar(player){
@@ -1846,23 +2198,24 @@ function meBar(player){
     var ui = new ActionFormData()
         .title("我的")
         .body(text)
+        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
         .button("我的队伍" , ui_path + "dressing_room_customization.png")
         .button("我所在的队伍" , ui_path + "dressing_room_skins.png")
         .button("获取箱子钥匙" , ui_path + "accessibility_glyph_color.png")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
+
         
         
         ui.show(player).then(result => {
-            if(result.selection === 3){
+            if(result.selection === 0){
                 cdBar(player)
             }
-            if(result.selection === 2){
+            if(result.selection === 3){
                 getKeyBar(player)
             }
-            if(result.selection === 0){
+            if(result.selection === 1){
                 myTeamBar(player)
             }
-            if(result.selection === 1){
+            if(result.selection === 2){
                 myAddTeamBar(player)
             }
         })
@@ -1933,6 +2286,35 @@ function opWorkBar(player){
                 }
                 opWorkBar(player)
             }
+        })
+}
+
+
+function settingBar(player){
+    var ui = new ActionFormData()
+        .title("插件设置")
+        .body("插件功能管理")
+        if(settings.kick === false){
+        ui = ui.button("反作弊自动踢人 - 关")
+        }
+        else{
+        ui = ui.button("反作弊自动踢人 - 开")
+        }
+        ui = ui.button("信息转移(0.0.3及以下)")
+        
+        ui.show(player).then(result => {
+            if(result.selection === 0){
+                if(settings.kick === false){
+                    settings.kick = true
+                }
+                else{
+                    settings.kick = false
+                }
+                settingBar(player)
+            }
+            
+            
+            save_settings()
         })
 }
 
@@ -2278,12 +2660,57 @@ function historyResultBar(player,text){
         })
 }
 
+function banOpBar(player){
+    var ui = new ActionFormData()
+        .title("封禁列表管理")
+        .body("封禁列表管理")
+        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
+        .button("封禁在线玩家")
+        .button("封禁离线玩家")
+        .button("解封玩家")
+        .button("查看封禁玩家列表")
+        
+        ui.show(player).then(result => {
+            if(result.selection === 0){
+                opBar(player)
+            }
+            if(result.selection === 1){
+                chooseBanBar(player)
+            }
+            if(result.selection === 2){
+                banSetBar(player,0)
+            }
+            if(result.selection === 3){
+                banSetBar(player,1)
+            }
+            if(result.selection === 4){
+                banListBar(player)
+            }
+        })
+}
+
+function banListBar(player){
+    var text = ""
+    for(var cf of ban_list){
+        text += cf + "\n"
+    }
+    var ui = new ActionFormData()
+        .title("封禁列表")
+        .body("封禁列表：\n(共" + String(ban_list.length) + "人)\n" + text)
+        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
+        
+        ui.show(player).then(result => {
+            banOpBar(player)
+        })
+}
+
 function tradeBar(player){
     var ui = new ActionFormData()
         .title("交易界面")
         .body("和玩家们一起交易吧~")
-        .button("添加交易", ui_path + "book_addtextpage_default.png")
         .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
+        .button("添加交易", ui_path + "book_addtextpage_default.png")
+        
         for(var cf=0;cf<trades.length;cf++){
             var things = trades[cf].split("，")
             var mode = ""
@@ -2304,10 +2731,10 @@ function tradeBar(player){
         }
         
         ui.show(player).then(result => {
-            if(result.selection === 0){
+            if(result.selection === 1){
                 addTradeBar(player)
             }
-            if(result.selection === 1){
+            if(result.selection === 0){
                 cdBar(player)
             }
             if(result.selection > 1){
@@ -2428,24 +2855,25 @@ function playerBar(player){
     var ui = new ActionFormData()
         .title("玩家互动界面")
         .body("来和玩家们一起互动吧")
+        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
         .button("私聊玩家", ui_path + "mute_off.png")
         .button("聊天设置(当前：" + text + ")" , ui_path + "settings_glyph_color_2x.png")
         .button("交易" , ui_path + "icon_book_writable.png")
         .button("emoji大全" , ui_path + "regeneration_effect.png")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
+
         
         
         ui.show(player).then(result => {
-            if(result.selection === 0){
+            if(result.selection === 1){
                 talkBar(player)
             }
-            if(result.selection === 4){
+            if(result.selection === 0){
                 cdBar(player)
             }
-            if(result.selection === 3){
+            if(result.selection === 4){
                 emojiBar(player)
             }
-            if(result.selection === 1){
+            if(result.selection === 2){
                 player.removeTag("talk_mode," + String(talk_mode))
                 if(talk_mode === ""){
                     player.addTag("talk_mode,1")
@@ -2463,7 +2891,7 @@ function playerBar(player){
                 }
                 playerBar(player)
             }
-            if(result.selection === 2){
+            if(result.selection === 3){
                 tradeBar(player)
             }
         })
@@ -2479,6 +2907,31 @@ function ideaBar(player){
             player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e意见反馈已收到，奖励20贡献"}]}`)
             ideas.push(player.name + " >> " + result.formValues[0])
             cdBar(player)
+        })
+}
+
+function banSetBar(player,mode){
+    var ui = new ModalFormData()
+        if(mode === 0){
+        ui = ui.title("封禁玩家")
+        }
+        else{
+            ui = ui.title("解封玩家")
+        }
+        ui = ui.textField("玩家名","在此输入","")
+        
+        ui.show(player).then(result => {
+            if(mode === 0){
+                ban_list.push(result.formValues[0])
+                save_ban_list()
+            }
+            else{
+                if(ban_list.indexOf(result.formValues[0]) !== -1){
+                    ban_list.splice(ban_list.indexOf(result.formValues[0]),1)
+                    save_ban_list()
+                }
+            }
+            banOpBar(player)
         })
 }
 
@@ -2537,9 +2990,17 @@ function tpPlayerBar(player){
         .title("传送至玩家")
         .dropdown("选择玩家", names ,0)
         .textField("传送备注","此处输入消息(消耗100贡献)","")
+        .toggle("使用tpa弹窗",false)
         
         ui.show(player).then(result => {
+            if(result.formValues[2] === true){
             tpaBar(players[result.formValues[0]],player,result.formValues[1])
+            }
+            player.tell("§b玩家" + players[result.formValues[0]].name + "请求传送至您的位置\n对方备注：" + result.formValues[1] + "\n§b1分钟内输入tpaccept即可传送")
+            player.tpa_player = {
+                "player":players[result.formValues[0]],
+                "time":system.currentTick
+            }
         })
 }
 
@@ -2566,7 +3027,7 @@ function inCheckBar(player){
         names.push(players[cf].name)
     }
     var ui = new ModalFormData()
-        .title("传送至玩家(管理模式)")
+        .title("查看玩家物品栏")
         .dropdown("选择玩家", names ,0)
         
         ui.show(player).then(result => {
@@ -2599,19 +3060,14 @@ function tpaBar(target,player,tpText){
         ui.show(target).then(result => {
             switch(result.selection){
                 case 1:
-                    if(target.dimension.id === player.dimension.id){
-                        player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e正在执行传送"}]}`)
-                        var tp_text = "tp @s "+ String(target.location.x) + " " + String(target.location.y) + " " + String(target.location.z)
-                        player.runCommandAsync(tp_text)
-                        add_score(player,-100,true)
-                    }
-                    else{
-                        player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"维度不同，tpa失败"}]}`)
-                        target.runCommandAsync(`tellraw @s {"rawtext":[{"text":"维度不同，tpa失败"}]}`)
-                    }
+                    add_score(player,-100,true)
+                    player.tell("§e正在执行传送")
+                    player.tpa_player = ""
+                    entity_to_entity(player,target)
                     break;
                 case 0:
-                    player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e对方拒绝了你的请求"}]}`)
+                    player.tpa_player = ""
+                    player.tell("§e对方拒绝了你的请求")
                     break;
             }
         })
@@ -2665,14 +3121,19 @@ function log(text,say = false){
     }catch(any){}finally{}
    }
     if(say == true){
-    world.say("§4" + server)
+    world.say("§c" + server)
     }
 }
 
 function show_board(player){
+    var text = ""
+    for(var cf of totals)
+    {
+        text += cf + "\n"
+    }
     var ui = new ActionFormData()
         .title("公告")
-        .body(totals)
+        .body(text)
         .button("打开交易" , ui_path + "icon_book_writable.png")
         .button("打开主菜单" , ui_path + "icon_crafting.png")
         
@@ -2682,6 +3143,32 @@ function show_board(player){
             }
             if(result.selection === 0){
                 tradeBar(player)
+            }
+        })
+}
+
+function opBoardBar(player){
+    var text = ""
+    for(var cf of totals)
+    {
+        text += cf + "\n"
+    }
+    var ui = new ActionFormData()
+        .title("公告设置")
+        .body(text)
+        .button("重新设置公告内容" , ui_path + "icon_book_writable.png")
+        .button("编辑公告内容" , ui_path + "icon_crafting.png")
+        .button("返回上一级")
+        
+        ui.show(player).then(result => {
+            if(result.selection === 1){
+                editTotalsBar(player)
+            }
+            if(result.selection === 0){
+                changeTotalsBar(player,[])
+            }
+            if(result.selection === 2){
+                opBar(player)
             }
         })
 }
@@ -2723,24 +3210,128 @@ function inLookBar(player,target){
         })
 }
 
-function changeTotalBar(player,texts){
-    var text = texts
-    if(text !== ""){
-        text += "\n"
+function changeTotalsBar(player,texts){
+    var text = ""
+    for(var cf=0;cf<texts.length;cf++){
+        var line = "§r§a" + String(cf+1) + " "
+        if(cf < 9){
+            line += "  "
+        }
+        line += "§r"
+        text += line + texts[cf] + "\n"
     }
     var ui = new ModalFormData()
         .title("公告修改")
-        .textField(texts,"新一行内容","")
+        .textField(text,"新一行内容","")
         .toggle("结束",false)
         ui.show(player).then(result => {
-            text+= result.formValues[0]
+            var new_texts = texts
+            new_texts.push(result.formValues[0])
             if(result.formValues[1] === false){
-            changeTotalBar(player,text)
+            changeTotalsBar(player,new_texts)
             }
             else{
-                totals = text
-                
-                
+                totals = new_texts
+                save_totals()
+            }
+        })
+}
+
+function totalsLineBar(player,texts,goal){
+    var text = texts[goal]
+    var ui = new ModalFormData()
+        .title("公告单行编辑")
+        .textField(text,"该行内容",text)
+        .dropdown("操作", ["修改","插入新一行","删除这一行"] ,0)
+
+        ui.show(player).then(result => {
+            var new_texts = texts
+            switch(result.formValues[1]){
+                case 0:
+                    new_texts[goal] = result.formValues[0]
+                    break;
+                case 1:
+                    new_texts.splice(goal+1,0,result.formValues[0])
+                    break;
+                case 2:
+                    new_texts.splice(goal,1)
+                    break;
+            }
+            editTotalsBar(player,new_texts,goal)
+        })
+}
+
+function totalsJumpBar(player,texts){
+    var text = ""
+    for(var cf=0;cf<texts.length;cf++){
+        var line = "§r§a" + String(cf+1) + " "
+        if(cf < 9){
+            line += "  "
+        }
+        line += "§r"
+        text += line + texts[cf] + "\n"
+    }
+    var ui = new ModalFormData()
+        .title("跳转")
+        .slider(text + "\n\n跳转到 ",1,texts.length,1)
+        ui.show(player).then(result => {
+            editTotalsBar(player,texts,result.formValues[0]-1)
+        })
+}
+
+function editTotalsBar(player,texts = [...totals],choose = 0){
+    var text = ""
+    for(var cf=0;cf<texts.length;cf++){
+        if(cf === choose){
+            text += "§a>>§r"
+        }
+        else{
+            text += "  "
+        }
+        text += " " + texts[cf] + "\n"
+    }
+    var ui = new ActionFormData()
+        .title("公告编辑")
+        .body(text)
+        .button("上一行")
+        .button("编辑这一行")
+        .button("下一行")
+        .button("跳转到指定行")
+        .button("完成")
+        .button("取消此次编辑")
+        
+        
+        ui.show(player).then(result => {
+            switch(result.selection){
+                case 0:
+                    if(choose > 0){
+                        editTotalsBar(player,texts,choose-1)
+                    }
+                    else{
+                        editTotalsBar(player,texts,choose)
+                    }
+                    break;
+                case 2:
+                    if(choose < texts.length - 1){
+                        editTotalsBar(player,texts,choose+1)
+                    }
+                    else{
+                        editTotalsBar(player,texts,choose)
+                    }
+                    break;
+                case 4:
+                    totals = texts
+                    save_totals()
+                    break;
+                case 5:
+                    opBar(player)
+                    break;
+                case 3:
+                    totalsJumpBar(player,texts)
+                    break;
+                case 1:
+                    totalsLineBar(player,texts,choose)
+                    break;
             }
         })
 }
